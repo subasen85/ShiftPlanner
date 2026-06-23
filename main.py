@@ -38,7 +38,29 @@ def main():
         print("No employees provided. Exiting.")
         return
 
+    print("\nPlease enter the schedule date range.")
+    start_date_str = ""
+    while not start_date_str:
+        try:
+            val = input("Enter Start Date (DD-MMM-YYYY, e.g. 06-Jul-2026): ").strip()
+            if val:
+                start_date_str = val
+        except (KeyboardInterrupt, EOFError):
+            print("\nExiting planner.")
+            return
+
+    end_date_str = ""
+    while not end_date_str:
+        try:
+            val = input("Enter End Date (DD-MMM-YYYY, e.g. 02-Aug-2026): ").strip()
+            if val:
+                end_date_str = val
+        except (KeyboardInterrupt, EOFError):
+            print("\nExiting planner.")
+            return
+
     print(f"\nCollected employees: {', '.join(employees)}")
+    print(f"Date Range: {start_date_str} to {end_date_str}")
     print("Initializing ADK Shift Planner Agent and generating schedule...\n")
     
     try:
@@ -49,8 +71,9 @@ def main():
         
         # Define user message
         prompt_text = (
-            f"Please generate the shift schedule for the following employees: {', '.join(employees)}. "
-            f"Then save it locally and upload it to Google Sheets in folder 'KaggleCap' and spreadsheet name 'Shift_Details_jul_2026'."
+            f"Please generate the shift schedule for the following employees: {', '.join(employees)} "
+            f"from {start_date_str} to {end_date_str}. "
+            f"Then save it locally and upload it to Google Sheets in folder 'KaggleCap'."
         )
         message = types.Content(
             role="user",

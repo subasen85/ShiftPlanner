@@ -21,9 +21,17 @@ model_name = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 
 # Define tools for the agent
 
-def generate_shift_schedule(employees: list[str]) -> list[dict]:
+def parse_date(date_str: str) -> datetime.date:
+    for fmt in ("%d-%b-%Y", "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
+        try:
+            return datetime.datetime.strptime(date_str, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(f"Could not parse date: '{date_str}'. Please use DD-MMM-YYYY (e.g. 06-Jul-2026).")
+
+def generate_shift_schedule(employees: list[str], start_date_str: str, end_date_str: str) -> list[dict]:
     """
-    Generates a balanced shift schedule for the period from 6th July 2026 to 2nd August 2026
+    Generates a balanced shift schedule for the specified date range
     satisfying all constraints:
     - 2 off days (weekoffs) per week per employee.
     - Exactly 1 person in Shift1 (07:00-15:00 IST) and 1 person in Shift2 (12:00-20:00 IST) on Sundays.
@@ -31,20 +39,22 @@ def generate_shift_schedule(employees: list[str]) -> list[dict]:
 
     Args:
         employees: List of employee names.
+        start_date_str: Start date of the schedule (e.g., '06-Jul-2026').
+        end_date_str: End date of the schedule (e.g., '02-Aug-2026').
 
     Returns:
         List of daily schedule records containing Date, Day, Employee name, and Assignment.
     """
-    start_date = datetime.date(2026, 7, 6)
-    end_date = datetime.date(2026, 8, 2)
+    start_date = parse_date(start_date_str)
+    end_date = parse_date(end_date_str)
     solver = ShiftSolver(employees)
     return solver.generate_schedule(start_date, end_date)
 
 def upload_schedule_to_sheets(employees: list[str], schedule: list[dict]) -> str:
     """
-    Attempts to upload the generated schedule to a Google Sheet named 'Shift_Details_jul_2026'
-    inside the folder 'KaggleCap' on Google Drive. If credentials are not present,
-    it saves local CSV and Markdown backup files and returns instructions for setup.
+    Attempts to upload the generated schedule to Google Sheets in folder 'KaggleCap'
+    under a name based on the schedule dates (e.g., 'Shift_Details_jul_2026').
+    If credentials are not present, it saves a local Excel (.xlsx) file and returns details.
 
     Args:
         employees: List of employee names.
@@ -54,7 +64,15 @@ def upload_schedule_to_sheets(employees: list[str], schedule: list[dict]) -> str
         A string message describing the outcome.
     """
     # 1. Generate local Excel file first
-    excel_file = "Shift_Details_jul_2026.xlsx"
+    first_record = schedule[0]
+    start_date_obj = datetime.datetime.strptime(first_record["Date"], "%Y-%m-%d").date()
+    month_str = start_date_obj.strftime("%b").lower()
+    year_str = start_date_obj.strftime("%Y")
+    suffix = f"{month_str}_{year_str}"
+    
+    excel_file = f"Shift_Details_{suffix}.xlsx"
+    spreadsheet_name = f"Shift_Details_{suffix}"
+    tab_title = start_date_obj.strftime("%B %Y")
     
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
@@ -70,7 +88,7 @@ def upload_schedule_to_sheets(employees: list[str], schedule: list[dict]) -> str
     try:
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "July 2026"
+        ws.title = tab_title
         
         # Write headers
         ws.append(headers)
@@ -140,13 +158,13 @@ def upload_schedule_to_sheets(employees: list[str], schedule: list[dict]) -> str
         folder_id = get_or_create_folder(drive_service, "KaggleCap")
         
         # Get or create spreadsheet
-        spreadsheet_id = get_or_create_spreadsheet(drive_service, folder_id, "Shift_Details_jul_2026")
+        spreadsheet_id = get_or_create_spreadsheet(drive_service, folder_id, spreadsheet_name)
         
         # Populate sheet
         write_schedule_to_sheets(creds, spreadsheet_id, employees, schedule)
         
         return (
-            f"Successfully uploaded schedule to Google Sheet named 'Shift_Details_jul_2026' "
+            f"Successfully uploaded schedule to Google Sheet named '{spreadsheet_name}' "
             f"inside the Google Drive folder 'KaggleCap'.\n"
             f"Local Excel backup also saved as `{excel_file}`."
         )
@@ -164,8 +182,8 @@ root_agent = Agent(
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=(
-        "You are an AI shift planning assistant. Given a list of employee names:\n"
-        "1. Run the 'generate_shift_schedule' tool to calculate the shift schedule for the period (6th July 2026 to 2nd August 2026).\n"
+        "You are an AI shift planning assistant. Given a list of employee names, a start date, and an end date:\n"
+        "1. Run the 'generate_shift_schedule' tool to calculate the shift schedule for the specified date range.\n"
         "2. Run the 'upload_schedule_to_sheets' tool to save it locally and upload it to Google Sheets.\n"
         "3. Present the resulting schedule back to the user in a beautiful format and explain briefly how it satisfies the required constraints:\n"
         "   - Shift1 (07:00 - 15:00 IST) and Shift2 (12:00 - 20:00 IST).\n"
