@@ -2,6 +2,8 @@
 
 *Author: Solutions Architect*
 
+![Featured Image](featured_image.png)
+
 In enterprise systems design, resource scheduling is a classic, yet notoriously complex, constraint-satisfaction problem (CSP). Balancing operational demands, regulatory constraints, and employee welfare requirements (such as mandated weekoffs) typically leads to a combinatorial explosion of states. 
 
 Recently, there has been a push to solve these scheduling problems using Generative AI. However, relying purely on Large Language Models (LLMs) for strict mathematical and logical tasks (like scheduling or counting days) is risky due to the stochastic nature of token prediction. 
