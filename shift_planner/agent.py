@@ -53,13 +53,12 @@ def upload_schedule_to_sheets(employees: list[str], schedule: list[dict]) -> str
     Returns:
         A string message describing the outcome.
     """
-    # 1. Generate local backup files first
-    csv_file = "Shift_Details_jul_2026.csv"
-    md_file = "Shift_Details_jul_2026.md"
+    # 1. Generate local Excel file first
+    excel_file = "Shift_Details_jul_2026.xlsx"
     
-    # Generate CSV
-    import csv
-    # Pivot for CSV
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    
     employees_sorted = sorted(list(set(employees)))
     headers = ["Date", "Day"] + employees_sorted
     
@@ -69,39 +68,64 @@ def upload_schedule_to_sheets(employees: list[str], schedule: list[dict]) -> str
         pivoted[(r["Date"], r["Day"])][r["Employee"]] = r["Assignment"]
         
     try:
-        with open(csv_file, mode="w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(headers)
-            for (date, day) in sorted(pivoted.keys()):
-                row = [date, day]
-                for emp in employees_sorted:
-                    row.append(pivoted[(date, day)].get(emp, ""))
-                writer.writerow(row)
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "July 2026"
+        
+        # Write headers
+        ws.append(headers)
+        
+        # Write rows
+        for (date, day) in sorted(pivoted.keys()):
+            row = [date, day]
+            for emp in employees_sorted:
+                row.append(pivoted[(date, day)].get(emp, ""))
+            ws.append(row)
+            
+        # Styling definitions
+        font_family = "Segoe UI"
+        header_fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
+        header_font = Font(name=font_family, size=11, bold=True)
+        regular_font = Font(name=font_family, size=10)
+        weekoff_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        weekoff_font = Font(name=font_family, size=10, color="9C0006", bold=True)
+        center_align = Alignment(horizontal="center", vertical="center")
+        
+        # Format Header Row
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = center_align
+            
+        # Format Data Rows
+        for row_idx in range(2, len(pivoted) + 2):
+            for col_idx in range(1, len(headers) + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                cell.font = regular_font
+                cell.alignment = center_align
                 
-        # Generate Markdown
-        with open(md_file, mode="w", encoding="utf-8") as f:
-            f.write("# Shift Details July 2026\n\n")
-            f.write("| " + " | ".join(headers) + " |\n")
-            f.write("| " + " | ".join(["---"] * len(headers)) + " |\n")
-            for (date, day) in sorted(pivoted.keys()):
-                row = [date, day]
-                for emp in employees_sorted:
-                    val = pivoted[(date, day)].get(emp, "")
-                    if val == "Weekoff":
-                        row.append(f"**{val}**")  # Bold weekoff locally
-                    else:
-                        row.append(val)
-                f.write("| " + " | ".join(row) + " |\n")
+                # Highlight weekoffs in RED
+                if col_idx > 2 and cell.value == "Weekoff":
+                    cell.fill = weekoff_fill
+                    cell.font = weekoff_font
+                    
+        # Auto-fit column widths
+        for col in ws.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            col_letter = openpyxl.utils.get_column_letter(col[0].column)
+            ws.column_dimensions[col_letter].width = max(max_len + 3, 10)
+            
+        wb.save(excel_file)
     except Exception as e:
-        print(f"Error saving local backup files: {e}")
+        print(f"Error saving local Excel file: {e}")
 
     # 2. Check credentials
     creds = get_credentials()
     if creds is None:
         return (
-            f"Local backup files saved successfully:\n"
-            f"- CSV: `{csv_file}`\n"
-            f"- Markdown: `{md_file}`\n\n"
+            f"Local Excel file saved successfully:\n"
+            f"- Excel File: `{excel_file}`\n\n"
             f"**Google Sheets integration was skipped** because no credentials were found.\n"
             f"To enable direct Google Sheets upload, please place either `credentials.json` "
             f"(OAuth Client) or `service_account.json` (Service Account) in the project directory."
@@ -124,12 +148,12 @@ def upload_schedule_to_sheets(employees: list[str], schedule: list[dict]) -> str
         return (
             f"Successfully uploaded schedule to Google Sheet named 'Shift_Details_jul_2026' "
             f"inside the Google Drive folder 'KaggleCap'.\n"
-            f"Local backups also saved as `{csv_file}` and `{md_file}`."
+            f"Local Excel backup also saved as `{excel_file}`."
         )
     except Exception as e:
         return (
             f"Failed to upload to Google Sheets due to an error: {e}.\n"
-            f"However, local backups were successfully saved to `{csv_file}` and `{md_file}`."
+            f"However, local Excel backup was successfully saved to `{excel_file}`."
         )
 
 # Define the root agent
