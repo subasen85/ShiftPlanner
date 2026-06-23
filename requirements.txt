@@ -1,0 +1,6 @@
+google-adk[gcp]>=2.2.0
+gspread>=6.2.1
+google-auth-oauthlib>=1.4.0
+google-api-python-client>=2.197.0
+pandas>=2.0.0
+python-dotenv>=1.0.0
